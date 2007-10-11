@@ -7,9 +7,25 @@ Loosely based on the English translation of the SI brochure
 >>> from si.units.common import *
 >>> print (1*bar)*(1*l)
 100.0 J
+
+Uses floats and python math by default. Override by setting SI.math to a math emulating module and SI.nonint to your numeric typ (see default function).
 """
 from __future__ import division
 import sys
+
+import math as math # override this 
+def nonint(s):
+	"""SI.nonint is used by prefixes and units to allow for flexible handling of non-integer numbers (integers are assumed to work in all situations).
+
+	Passed s will roughly fit "($DECIMAL)(/$DECIMAL)?(+-$DECIMAL(/$DECIMAL))?", if you get the idea. +- indicates standard uncertainity, just in case some system cares, and can be discarded by most implementations."""
+	if "+-" in s:
+		assert len(s) = 2*s.index("+-")+2, "I think you got the standard uncertainities wrong. Fix me if it's me."
+		s = s[:s.index("+-")]
+	if "/" in s:
+		s = s.split("/",1)
+		return float(s[0])/float(s[1])
+	else:
+		return float(s)
 
 class MakesNoSense(Exception):
 	"""Exception raised when impossible operations are attempted on SI objects, like adding seconds to candela."""
@@ -144,8 +160,11 @@ class SI(tuple):
 		>>> print 5/s
 		5.0 Hz
 		"""
-		def expsum(u): return sum([abs(x) for x in u])
+		def expsum(u):
+			return sum([abs(x) for x in u])
 		units=availableUnits()
+		units.sort(cmp=lambda a,b:-cmp(expsum(a[1].dim),expsum(b[1].dim)))
+		print unit
 
 		decomposition={}
 
@@ -170,9 +189,23 @@ class SI(tuple):
 	__str__=intelligentstring
 
 
+class ModuleSIRegister(object):
+	"""In a module, create a _register = ModuleSIRegister(locals()) and add define units like _register.register(s**-1, "Hz", "herz", prefixes = list('YZEPTGMk')). Units will be made available for inclusion automatically, and prefixing is handled."""
+	def __init__(self, locals):
+		self.names = {}
+		self.symbols = {}
+		self.description = {}
+		self.prefixes = {}
+		self.map_always = []
+		self.map_exact = []
+	def register(unit, symbol, name, description = None, prefixes = None, map = "exact"):
+		"""Add a unit.
+		
+		prefixes is a list of SI prefix names common for that unit (or True for all, or one of ["kg","m2","m3"] for magic handling). map defines if and how the unit should be used to give names to SI quantities ("exact" to match only itself, "always" for normal use, "never")"""
+
 def availableUnits():
 	"""List of name/value tuples for intelligentstring; depends on loaded modules (no units will be used whose module is not yet imported)"""
-	intelligentStringUnits=["Ohm", "S","J","W","Pa","N","V","C","Wb","Ohm","H","F","T","Hz"]
+	intelligentStringUnits=["Ohm", "S","J","W","Pa","N","V","C","Wb","H","F","T","Hz"]
 	found={}
 	for name,module in sys.modules.items():
 		if name.startswith('si.units.') and module:
