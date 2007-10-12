@@ -1,5 +1,5 @@
 # encoding: utf8
-from SI import nonint
+from si import nonint
 Y = yotta = 10**24
 Z = zetta = 10**21
 E = exa = 10**18
