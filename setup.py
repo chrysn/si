@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
         name = "si",
-        version = "0.1-2",
+        version = "0.1.1",
         packages = ["si", "si.units"],
         author = "chrysn",
         author_email = "chrysn@fsfe.org",

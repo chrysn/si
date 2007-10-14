@@ -1,14 +1,20 @@
 # encoding: utf8
 """
 This module encapsulates useful classes and data for calculating with SI quantities.
-Loosely based on the English translation of the SI brochure
-<http://www.bipm.org/utils/common/pdf/si_brochure_8_en.pdf>
+Loosely based on the `English translation of the SI brochure`__.
+
+.. __: http://www.bipm.org/utils/common/pdf/si_brochure_8_en.pdf
 
 >>> from si.units.common import *
 >>> print (1*bar)*(1*l)
 100.0 J
 
 Uses floats and python math by default. Override by setting SI.math to a math emulating module, SI.nonint to (a wrapper around) your numeric type, truediv to a good divsion function, and pow (see default function).
+
+Caveats:
+
+	* SI objects are purely mathematical (no physical concepts) and therefore can not have any notion of what they are *really* representing. Don't expect them to make a difference between Nm and J!
+	* Floats are tricky. Take the difference between mL and cm3 to know what I mean.
 """
 from __future__ import division
 import sys
@@ -102,10 +108,15 @@ class SI(tuple):
 		>>> print m*2
 		2 m
 		>>> print 2*m*m
-		2 m^2"""
+		2 m^2
+		>>> print 1/s * s
+		1"""
 		if not hasattr(other,'dim'):
 			return SI((self.value*other,self.dim))
-		return SI((self.value*other.value,self._exponents_mul(self.dim,other.dim)))
+		newexp = self._exponents_mul(self.dim,other.dim)
+		if not self._expsum(newexp):
+			return self.value * other.value
+		return SI((self.value*other.value,newexp))
 	__rmul__=__mul__
 	def __div__(self,other):
 		""">>> from si.units.common import *
@@ -117,8 +128,10 @@ class SI(tuple):
 		2"""
 		if not hasattr(other,'dim'):
 			return SI((truediv(self.value,other),self.dim))
-		if other.dim==self.dim: return truediv(self.value,other.value)
-		return SI((truediv(self.value,other.value),self._exponents_div(self.dim,other.dim)))
+		newexp = self._exponents_div(self.dim,other.dim)
+		if not self._expsum(newexp):
+			return truediv(self.value,other.value)
+		return SI((truediv(self.value,other.value),newexp))
 	__truediv__=__div__
 	def __rdiv__(self,other):
 		""">>> from si.units.common import *
@@ -140,6 +153,15 @@ class SI(tuple):
 	def __nonzero__(self):
 		return bool(self.value)
 
+	def __lt__(self, other):
+		return cmp(self, other)<0
+	def __gt__(self, other):
+		return cmp(self, other)>0
+	def __le__(self, other):
+		return cmp(self, other)<=0
+	def __ge__(self, other):
+		return cmp(self, other)>=0
+
 	def using(self,unit):
 		"""Get numeric value in given unit.
 
@@ -156,10 +178,14 @@ class SI(tuple):
 	def __repr__(self):
 		return '<SI %s>'%self.basestring()
 
-	def intelligentstring(self):
-		"""Return a string representation using compound SI units. The function will try to
+	@staticmethod
+	def _expsum(u):
+		return sum([abs(x) for x in u])
 
-		- minimize the sum of absolute values of exponents: (this is only partially achieved)
+	def intelligentstring(self, unicode = True):
+		"""Return a string representation using compound SI units. The function will roughly try to:
+
+		- minimize the sum of absolute values of exponents:
 		>>> from si.units.common import *
 		>>> gravity=10*m/s/s; height=5*m; mass=5*kg
 		>>> print gravity*height*mass
@@ -168,9 +194,9 @@ class SI(tuple):
 		- avoid units with no positive exponents:
 		>>> print 5/s
 		5 Hz
+
+		Will use unicode strings unless unicode is false.
 		"""
-		def expsum(u):
-			return sum([abs(x) for x in u])
 
 		u_exact = []
 		u_always = []
@@ -180,6 +206,8 @@ class SI(tuple):
 				if ru.map != "never": u_exact.append(ru)
 				if ru.map == "always": u_always.append(ru)
 
+		u_always.sort(cmp = lambda a,b: -cmp(self._expsum(a.unit.dim), self._expsum(b.unit.dim)))
+
 		exactmatch = []
 		for ru in u_exact:
 			if ru.unit == self.unit:
@@ -187,44 +215,52 @@ class SI(tuple):
 
 		if exactmatch:
 			if len(exactmatch)>1:
-				warnings.warn("More than one registered unit matches this quantity.")
-			unit = exactmatch[0].unit
-			unit_symbol = exactmatch[0].preferred_symbol()
+				warnings.warn("More than one registered unit matches this quantity: %s."%exactmatch)
+			decomposition = {exactmatch[0].preferred_symbol(unicode):1}
+			remaining = self / exactmatch[0].unit
 		else:
-			u_always.sort(cmp = lambda a,b: -cmp(expsum(a.unit.dim), expsum(b.unit.dim)))
+			decomposition = {}
+			remaining = self
+			last = None
 
-			decomposition={}
-
-			lastunits=None
-			remaining=self.dim
-			while lastunits!=remaining:
-				lastunits=remaining
-				currentexpsum=expsum(remaining)
+			while hasattr(remaining, "dim") and (last is None or last != remaining):
+				last = remaining
+				currentexpsum=self._expsum(remaining.dim)
 				for ru in u_always:
-					div=self._exponents_div(remaining,ru.unit.dim)
-					if expsum(div)+1<currentexpsum or (expsum(div)+1<=currentexpsum and max([x for x in remaining if x])<0 and not max([x for x in div if x]+[1])<0): # by dividing, another exponent is added (thus +1). substitution with equal number of exponents is only done to avoid negative exponents.
-						decomposition[ru]=decomposition.get(ru,0)+1
+					div = remaining / ru.unit
+					if not hasattr(div, "dim") or ( # we are through with this
+								not sum([abs(a) < abs(b) for a,b in zip(remaining.dim, div.dim)]) # don't use factors that enlarge exponents
+								and
+								not sum([abs(a) < abs(b) for a,b in zip(remaining.dim, ru.unit.dim)]) # don't use factors larger than remaining
+							) and self._expsum(div.dim)<currentexpsum: # "pays off"
+						decomposition[ru.preferred_symbol(unicode)] = decomposition.get(ru.preferred_symbol(unicode),0) + 1
 						remaining=div
 						break
 
-			unit_symbol = dict((k.preferred_symbol(), v) for (k,v) in decomposition.iteritems())
-			unit = 1
-			for k,v in decomposition.iteritems():
-				unit *= k.unit ** v
+			# now for negative exponents
 
-			for name,value in zip(self.symbols,remaining):
-				assert name not in unit_symbol
-				unit_symbol[name] = value
-			unit *= SI((1, remaining))
+			last = None
+			while hasattr(remaining, "dim") and (last is None or last != remaining): # copy/pasted from above, just changed operators. FIXME: enhance
+				last = remaining
+				currentexpsum=self._expsum(remaining.dim)
+				for ru in u_always:
+					div = remaining * ru.unit
+					if not hasattr(div, "dim") or ( # we are through with this
+								not sum([abs(a) < abs(b) for a,b in zip(remaining.dim, div.dim)]) # don't use factors that enlarge exponents
+								and
+								not sum([abs(a) < abs(b) for a,b in zip(remaining.dim, ru.unit.dim)]) # don't use factors larger than remaining
+							) and self._expsum(div.dim)<currentexpsum: # "pays off"
+						decomposition[ru.preferred_symbol(unicode)] = decomposition.get(ru.preferred_symbol(unicode),0) - 1
+						remaining=div
+						break
 
-			unit_symbol = Exponents(unit_symbol)
-		
-		return "%s %s"%(self / unit, unit_symbol)
+			assert not hasattr(remaining, "dim"), "Didn't catch all exponents. Base units are probably not registered!"
+
+		return "%s %s"%(remaining, Exponents(decomposition))
 				
-	__unicode__=intelligentstring
+	def __unicode__(self): return self.intelligentstring(True)
 
-	def __str__(self):
-		return str(unicode(self))
+	def __str__(self): return self.intelligentstring(False)
 
 
 def _stringlist(o):
@@ -233,10 +269,12 @@ def _stringlist(o):
 		return o
 	else:
 		return [o]
-def _valid_name(s):
+
+def _valid_python_name(s):
 	return len([l for l in string.letters+"_" if s.startswith(l)]) and not len([l for l in s if l not in string.letters+string.digits+"_"])
+
 class ModuleSIRegister(object):
-	"""In a module, create a _register = ModuleSIRegister(locals()) and add define units like _register.register(s**-1, "Hz", "herz", prefixes = list('YZEPTGMk')). Units will be made available for inclusion automatically, and prefixing is handled."""
+	"""In a module, create a ``_register = ModuleSIRegister(locals())`` and add define units like ``_register.register(s**-1, "Hz", "herz", prefixes = list('YZEPTGMk'))``. Units will be made available for inclusion automatically, and prefixing is handled."""
 	loadedmodules = []
 
 	def __init__(self, locals):
@@ -249,66 +287,95 @@ class ModuleSIRegister(object):
 	def register(self, unit, symbol, name, description = None, prefixes = None, map = "exact"):
 		"""Add a unit.
 		
-		prefixes is a list of SI prefix names common for that unit (or True for all, or one of ["kg","m2","m3"] for magic handling). map defines if and how the unit should be used to give names to SI quantities ("exact" to match only itself, "always" for normal use, "never")"""
+		prefixes is a list of SI prefix names common for that unit (or True for all, or one of ``["kg","m2","m3"]`` for magic handling). map defines if and how the unit should be used to give names to SI quantities ("exact" to match only itself, "always" for normal use, "never")"""
 
 		symbol = _stringlist(symbol)
 		name = _stringlist(name)
 
-		ru = self.RegisteredSI(unit, symbol, name, description, prefixes, map)
+		ru = SIAnnotation(unit, symbol, name, description, prefixes, map)
 		self.units.append(ru)
 
-		for n in ru.get_names():
+		for n in ru.get_python_names():
 			self.locals[n] = unit
 		if self._prefix:
 			for n, pu in ru.get_prefixed():
 				self.locals[n] = pu
 	
 	def prefix(self):
+		"""Include all prefixed forms of registered SI objects in the namespace and do so for all registered in future."""
 		self._prefix = True
 
 		for ru in self.units:
 			for n, pu in ru.get_prefixed():
 				self.locals[n] = pu
 
-	class RegisteredSI(object):
-		all_prefixes = list('YZEPTGMkmunpfazy') + ["da"]
-		def __init__(self, unit, symbol, name, description, prefixes, map):
-			self.unit, self.symbol, self.name, self.description, self.prefixes, self.map = unit, symbol, name, description, prefixes, map
+class SIAnnotation(object):
+	"""Container to store meta information about an ``SI``. Stores prefix preferences, name, symbol, description, and display preferences. Listed via ``ModuleSIRegister``s, which in turn have their own mechanism to be listed.
+	
+	Should in most cases be constructed via the ``ModuleSIRegister``s' ``resgister()`` function."""
+	all_prefixes = list('YZEPTGMkhdcmunpfazy') + ["da"]
+	def __init__(self, unit, symbol, name, description, prefixes, map):
+		self.unit, self.symbol, self.name, self.description, self.prefixes, self.map = unit, symbol, name, description, prefixes, map
 
-		def get_prefixed(self):
-			import si.prefixes
-			if not self.prefixes:
-				return []
-			if self.prefixes in ["m2","m3","kg"]:
-				warnings.warn("Magic prefixes not yet implemented.")
-				return []
-			if self.prefixes == True:
-				prefixes = self.all_prefixes
-			else:
-				prefixes = self.prefixes
-
-			r = []
-			for n in self.get_names():
-				for p in prefixes:
-					r.append((p+n, self.unit * getattr(si.prefixes, p)))
+	def get_prefixed(self):
+		"""Return a list of 2-tuples with prefixed python-usable name versions and the corresponding unit value."""
+		import si.prefixes
+		if not self.prefixes:
+			return []
+		elif self.prefixes == "kg":
+			assert self.name == ["kilogram"], "Prefixing kg style only makes sense for kg. Fix me if I'm wrong."
+			g = self.unit / 1000
+			r = [("g", g)]
+			for p in self.all_prefixes:
+				if p != "k":
+					r.append((p+"g", g * getattr(si.prefixes, p)))
 			return r
-	
-		def get_names(self):
-			setone = False
-			for n in self.symbol:
-				if _valid_name(n):
-					yield n
-					setone = True
-			if not setone:
-				for n in self.name:
-					if _valid_name(n):
-						yield n
-						break
-				else:
-					raise Exception("Can not register unit name.")
+		elif self.prefixes == "m2":
+			assert self.name == ["square metre"], "Prefixing m2 style only makes sense for m2. Fix me if I'm wrong."
+			r = []
+			for p in self.all_prefixes:
+				r.append((p+"m2", self.unit * getattr(si.prefixes, p)**2))
+			return r
+		elif self.prefixes == "m3":
+			assert self.name == ["cubic metre"], "Prefixing m3 style only makes sense for m3. Fix me if I'm wrong."
+			r = []
+			for p in self.all_prefixes:
+				r.append((p+"m3", self.unit * getattr(si.prefixes, p)**3))
+			return r
+		elif self.prefixes == True:
+			prefixes = self.all_prefixes
+		else:
+			prefixes = self.prefixes
 
-		def preferred_symbol(self):
+		r = []
+		for n in self.get_python_names():
+			for p in prefixes:
+				r.append((p+n, self.unit * getattr(si.prefixes, p)))
+		return r
+
+	def get_python_names(self):
+		"""Yield at least one name that can be used to address the unit in python. First (long) name will be used if all prefixes are unusable as python identifiers."""
+		setone = False
+		for n in self.symbol:
+			if _valid_python_name(n):
+				yield n
+				setone = True
+		if not setone:
+			for n in self.name:
+				if _valid_python_name(n):
+					yield n
+					break
+			else:
+				raise Exception("Can not register unit name.")
+
+	def preferred_symbol(self, allow_unicode):
+		if allow_unicode:
 			return self.symbol[0] if self.symbol else self.name[0]
-	
-		def __repr__(self):
-			return "<RegisteredSI %r>"%self.symbol
+		else:
+			for s in self.symbol + self.name:
+				if not isinstance(s, unicode):
+					return s
+			raise Exception, "No non-unicode symbol available."
+
+	def __repr__(self):
+		return "<SIAnnotation %r>"%self.symbol

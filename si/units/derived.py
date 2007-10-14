@@ -25,7 +25,7 @@ r(Wb/A,"H","henry","inductance", prefixes=True)
 # degree Celsius causes much headache
 r(cd*sr,"lm","lumen","luminous flux", map="never")
 r(lm/m**2,"lx","lux","illuminance", map="never")
-r(1/s,"Bq","bequerel","activity referred to a radionuclide")
+r(1/s,"Bq","bequerel","activity referred to a radionuclide", map="never")
 r(J/kg,"Gy","gray","absorbed dose, specific energy (imparted), kerma")
 r(J/kg,"Sv","sievert","dose equivalent, ambient dose equivalent, directional dose equivalent, personal dose equivalent")
 r(mol/s,"kat","katal","catalytic activity")

@@ -13,7 +13,7 @@ da = deca = 10**1
 d = deci = nonint("1/10")**1
 c = centi = nonint("1/10")**2
 m = milli = nonint("1/10")**3
-u = micro = nonint("1/10")**6 # would have to be μ 
+u = micro = nonint("1/10")**6 # would have to be μ or µ
 n = nano = nonint("1/10")**9
 p = pico = nonint("1/10")**12
 f = femto = nonint("1/10")**15
