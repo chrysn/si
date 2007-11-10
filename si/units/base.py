@@ -1,5 +1,6 @@
 """SI base units."""
-from si import SI, ModuleSIRegister
+from si import SI
+from si.register import ModuleSIRegister
 _register = ModuleSIRegister(locals())
 r = _register.register # less writing
 

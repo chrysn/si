@@ -3,7 +3,7 @@ from si.units.derived import *
 from si.units.nonsi import *
 from si.units.other import *
 
-from si import ModuleSIRegister
+from si.register import ModuleSIRegister
 for register in ModuleSIRegister.loadedmodules:
     register.prefix()
 del register, ModuleSIRegister
