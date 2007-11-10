@@ -9,6 +9,13 @@
 >>> from si.common import *
 >>> print Oe
 250/pi A/m
+
+And now for something completely different:
+>>> import doctest
+>>> doctest.testmod(si) # doctest: +ELLIPSIS
+(0, ...)
+>>> doctest.testmod(si.register) # doctest: +ELLIPSIS
+(0, ...)
 """
 from __future__ import division
 from __future__ import absolute_import
@@ -28,3 +35,5 @@ def truediv(a,b):
     return sympify(a)/sympify(b)
 def pow(a,b):
     return sympify(a)**sympify(b)
+def simplest_form(value): # there is no float quirx here.
+    return value

@@ -21,5 +21,8 @@ def truediv(a,b):
 		return a//b
 	else:
 		return a/b
-
-round = round
+def simplest_form(value):
+	"""Return something that has a simple string representation. Here, this means converting floats to integers if possible without loss of data."""
+	if value == int(value):
+		return int(value)
+	return value

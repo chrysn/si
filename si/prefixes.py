@@ -14,7 +14,7 @@ da = deca = 10**1
 d = deci = pow(10,-1)
 c = centi = pow(10,-2)
 m = milli = pow(10,-3)
-u = micro = pow(10,-6) # would have to be μ or µ
+u = micro = pow(10,-6) # would have to be μ or µ. FIXME: hardcoded in register.search_prefixed
 n = nano = pow(10,-9)
 p = pico = pow(10,-12)
 f = femto = pow(10,-15)

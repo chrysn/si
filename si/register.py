@@ -1,6 +1,8 @@
+# encoding: utf-8
 """Module for (annotated) unit housekeeping; see ``ModuleSIRegister``."""
 from __future__ import division
 import string
+import si.math
 
 class ModuleSIRegister(object):
 	"""In a module, create a ``_register = ModuleSIRegister(locals())`` and add define units like ``_register.register(s**-1, "Hz", "herz", prefixes = list('YZEPTGMk'))``. Units will be made available for inclusion with import automatically, and prefixing is handled."""
@@ -22,14 +24,14 @@ class ModuleSIRegister(object):
 			return [o]
 
 	def register(self, unit, symbol, name, description = None, prefixes = None, map = "exact"):
-		"""A wrapper around SIAnnotation to add a unit with symbols and names (can be string/unicode or list thereof).
+		"""A wrapper around SIUnit to add a unit with symbols and names (can be string/unicode or list thereof).
 		
 		prefixes is a list of SI prefix names common for that unit (or True for all, or one of ``["kg","m2","m3"]`` for magic handling). map defines if and how the unit should be used to give names to SI quantities ("always" for normal use, "exact" to match only scalar multiples of the unit, "never") """
 
 		symbol = self._stringlist(symbol)
 		name = self._stringlist(name)
 
-		ru = SIAnnotation(unit, symbol, name, description, prefixes, map)
+		ru = SIUnit(unit, symbol, name, description, prefixes, map)
 		self.units.append(ru)
 
 		for n in ru.get_python_names():
@@ -46,8 +48,8 @@ class ModuleSIRegister(object):
 			for n, pu in ru.get_prefixed():
 				self.locals[n] = pu
 
-class SIAnnotation(object):
-	"""Container to store meta information about an ``SI`` unit. Stores prefix preferences, name, symbol, description, and display preferences. Listed via ``ModuleSIRegister``s, which in turn have their own mechanism to be listed.
+class SIUnit(object):
+	"""Container to store meta information about an ``SI`` quantity that is a unit. Stores prefix preferences, name, symbol, description, and display preferences. Listed via ``ModuleSIRegister``s, which in turn have their own mechanism to be listed.
 	
 	Should in most cases be constructed via the ``ModuleSIRegister``s' ``register()`` function."""
 
@@ -121,4 +123,134 @@ class SIAnnotation(object):
 			raise Exception, "No non-unicode symbol available."
 
 	def __repr__(self):
-		return "<SIAnnotation %r>"%self.symbol
+		return "<SIUnit: %r (%r)>"%(self.name[0],self.symbol[0])
+
+def search(q):
+	"""Search loaded modules for a quantity exactly matching the search term q.
+	
+	>>> from si.common import *
+	>>> search("u")
+	<SIUnit: 'Dalton' ('u')>"""
+
+	result = []
+
+	for m in ModuleSIRegister.loadedmodules:
+		for u in m.units:
+			if q in u.symbol or q in u.name:
+				result.append(u)
+
+	if not result: raise LookupError("No matching unit.")
+	assert len(result)==1, "Multiple units match that name." # should not occur with shipped modules
+	return result[0]
+
+def search_prefixed(q):
+	"""Like ``search``, but strip prefixes. Return a tuple of the prefix factor and the found unit.
+	
+	>>> from si.common import *
+	>>> from si.register import search_prefixed
+	>>> search_prefixed("Gg") # one giga-gram
+	(1000000, <SIUnit: 'kilogram' ('kg')>)
+	"""
+	import si.prefixes
+	q = q.replace(u"μ","u").replace(u"µ","u") # FIXME
+
+	factor = 1
+	stripped = q
+	for p,f in vars(si.prefixes).iteritems():
+		if q.startswith(p): 
+			assert factor == 1, "Multiple prefixes match that name." # should not occur with shipped modules.
+			factor = f
+			stripped = q[len(p):]
+	
+	# kg needs very special handling, unfortunately.
+	if stripped == "g":
+		return si.math.truediv(factor,1000), search("kg")
+	
+	try:
+		unit = search(stripped)
+	except: # maybe a prefix should not have been stripped
+		return (1, search(q).unit)
+
+
+	if unit.prefixes == "m2": factor = si.math.pow(factor, 2) # magic prefix handling!
+	elif unit.prefixes == "m3": factor = si.math.pow(factor, 3)
+	
+	return factor, unit
+
+def si_from_string(s):
+	"""Convert a string to a SI quantity.
+	
+	>>> print si_from_string("5S/cm^2")
+	50000 S/m^2
+	>>> print si_from_string("5 J/(m*mol)")
+	5 N/mol
+	>>> print si_from_string("50 WbkA^2")
+	50000000 A J
+	"""
+
+	lastnumber = 0
+	while s[lastnumber] in string.digits+"./": lastnumber+=1
+	
+	number, unit = s[:lastnumber].strip(),s[lastnumber:].strip()
+
+	return unit_from_string(unit) * si.math.nonint(number)
+
+def unit_from_string(s):
+	"""Convert a string without numeric components to a SI quantity
+	
+	>>> print unit_from_string("kHz")
+	1000 Hz
+
+	#>>> print unit_from_string("mm") # those will make doctest fail in one of two cases
+	#0.001 m
+
+	#>>> print unit_from_string("degree")
+	#(1/180)*pi
+	"""
+	result = 1
+	pospow = True
+
+	while s:
+		if s.startswith("*") or s.startswith(" "):
+			s = s[1:]
+			continue
+
+		if s.startswith("/"):
+			if pospow == False: raise Exception,"Concecutive slashes don't make sense."
+			pospow = False
+			s = s[1:]
+			continue
+
+		if s.startswith("("):
+			end = s.find(")")
+			inside = unit_from_string(s[1:end])
+			if not pospow: inside = inside ** (-1)
+			result = inside * result
+			s = s[end+1:]
+			pospow = True
+			continue
+
+		for x in range(len(s),0,-1):
+			try:
+				thisunit = search_prefixed(s[:x])
+			except:
+				continue
+			s = s[x:]
+			if s.startswith("^"):
+				power = int(s[1]) # FIXME if someone complains
+				s=s[2:]
+			else:
+				power = 1
+			if not pospow:
+				power = power * (-1)
+
+			if hasattr(thisunit[1],"unit"):
+				result = result * (thisunit[1].unit * thisunit[0])**power
+			else:
+				result = result * (thisunit[1] * thisunit[0])**power
+			pospow = True
+			break
+		else:
+			raise Exception("Can not convert to unit: %s"%s)
+	
+	return result

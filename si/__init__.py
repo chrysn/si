@@ -5,9 +5,15 @@ Loosely based on the `English translation of the SI brochure`__.
 
 .. __: http://www.bipm.org/utils/common/pdf/si_brochure_8_en.pdf
 
->>> from si.units.common import *
+>>> from si.common import *
 >>> print (1*bar)*(1*l)
 100 J
+
+You can also extract additional information about units:
+
+>>> from si.register import search
+>>> search("m").description
+'SI base unit of length'
 
 Uses floats and python math by default. Override by setting SI.math to a math emulating module, SI.nonint to (a wrapper around) your numeric type, truediv to a good divsion function, and pow (see default function).
 
@@ -23,10 +29,18 @@ from __future__ import division
 import sys
 import warnings
 
+import si.register
 import si.math
 
 class MakesNoSense(Exception):
-	"""Exception raised when impossible operations are attempted on SI objects, like adding seconds to candela."""
+	"""Exception raised when impossible operations are attempted on SI objects.
+	
+	>>> from si.common import *
+	>>> m + s
+	Traceback (most recent call last):
+	  ...
+	MakesNoSense: Adding non-compatible quantities.
+	"""
 
 class Exponents(dict):
 	"""Dictionary mapping symbolic bases to exponents."""
@@ -184,8 +198,6 @@ class SI(tuple):
 		Will use unicode strings unless unicode is false.
 		"""
 
-		import si.register
-
 		u_exact = []
 		u_always = []
 
@@ -244,8 +256,7 @@ class SI(tuple):
 
 			assert not hasattr(remaining, "dim"), "Didn't catch all exponents. Base units are probably not registered!"
 
-		if remaining == math.round(remaining):
-			remaining = int(remaining)
+		remaining = math.simplest_form(remaining)
 		return "%s %s"%(remaining, Exponents(decomposition))
 				
 	def __unicode__(self): return self.intelligentstring(True)
