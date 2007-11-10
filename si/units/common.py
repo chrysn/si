@@ -8,7 +8,7 @@ for register in ModuleSIRegister.loadedmodules:
     register.prefix()
 del register, ModuleSIRegister
 
-# now pull prefixed units. not beautyful, but works.
+# now pull prefixed units. not beautiful, but works.
 from si.units.base import *
 from si.units.derived import *
 from si.units.nonsi import *
