@@ -7,40 +7,21 @@ Loosely based on the `English translation of the SI brochure`__.
 
 >>> from si.units.common import *
 >>> print (1*bar)*(1*l)
-100.0 J
+100 J
 
 Uses floats and python math by default. Override by setting SI.math to a math emulating module, SI.nonint to (a wrapper around) your numeric type, truediv to a good divsion function, and pow (see default function).
 
 Caveats:
 
 	* SI objects are purely mathematical (no physical concepts) and therefore can not have any notion of what they are *really* representing. Don't expect them to make a difference between Nm and J!
-	* Floats are tricky. Take the difference between mL and cm3 to know what I mean.
+	* Python/IEEE floats are not ideal to represent negative powers of ten. Take the difference between mL and cm3 to know what I mean.
 """
 from __future__ import division
 import sys
 import string
 import warnings
 
-import math as math # override this 
-def nonint(s):
-	"""SI.nonint is used by prefixes and units to allow for flexible handling of non-integer numbers (integers are assumed to work in all situations).
-
-	Passed s will roughly fit "($DECIMAL)(/$DECIMAL)?(+-$DECIMAL(/$DECIMAL))?", if you get the idea. +- indicates standard uncertainity, just in case some system cares, and can be discarded by most implementations."""
-	if "+-" in s:
-		assert len(s) == 2*s.index("+-")+2, "I think you got the standard uncertainities wrong. Fix me if it's me."
-		s = s[:s.index("+-")]
-	if "/" in s:
-		s = s.split("/",1)
-		return truediv(float(s[0]),float(s[1]))
-	else:
-		return float(s)
-def truediv(a,b):
-	"""Return a/b, both of which can be int, whatever is returned by nonint, or basically anything else."""
-	if a/b == a//b:
-		return a//b
-	else:
-		return a/b
-pow = pow
+import si.math
 
 class MakesNoSense(Exception):
 	"""Exception raised when impossible operations are attempted on SI objects, like adding seconds to candela."""
@@ -127,11 +108,11 @@ class SI(tuple):
 		>>> print (10*m)/(5*m)
 		2"""
 		if not hasattr(other,'dim'):
-			return SI((truediv(self.value,other),self.dim))
+			return SI((si.math.truediv(self.value,other),self.dim))
 		newexp = self._exponents_div(self.dim,other.dim)
 		if not self._expsum(newexp):
-			return truediv(self.value,other.value)
-		return SI((truediv(self.value,other.value),newexp))
+			return si.math.truediv(self.value,other.value)
+		return SI((si.math.truediv(self.value,other.value),newexp))
 	__truediv__=__div__
 	def __rdiv__(self,other):
 		""">>> from si.units.common import *
@@ -139,13 +120,13 @@ class SI(tuple):
 		5 s"""
 		if hasattr(other,'dim'):
 			raise NotImplementedError("SI units can handle divisions themselves, no need to do this here")
-		return SI((truediv(other,self.value),tuple(-x for x in self.dim)))
+		return SI((si.math.truediv(other,self.value),tuple(-x for x in self.dim)))
 	__rtruediv__=__rdiv__
 	def __pow__(self,exp):
 		""">>> from si.units.common import *
 		>>> print (5*m)**2
 		25 m^2"""
-		return SI((pow(self.value,exp),tuple(a*exp for a in self.dim)))
+		return SI((si.math.pow(self.value,exp),tuple(a*exp for a in self.dim)))
 
 	def __cmp__(self,other):
 		if self.dim!=other.dim: raise MakesNoSense("Comparing non-compatible quantities.")
@@ -164,10 +145,13 @@ class SI(tuple):
 
 	def using(self,unit):
 		"""Get numeric value in given unit.
+		Use this instead of division if you want to make sure that the units match. (Otherwise, an exception is raised.)
+
+		How much is 1 m/s in attorparsec per microfortnight?
 
 		>>> from si.units.exotic import *
-		>>> (1*m/s).using(apc/ufortnight) # "how much is 1 m/s in attorparsec/microfortnight?"
-		39.200466287804225
+		>>> print (1*m/s).using(apc/ufortnight) # doctest: +ELLIPSIS
+		39.2004662878...
 		"""
 		if self.dim!=unit.dim: raise MakesNoSense("The quantity can not be expressed in that unit.")
 		return self.value/unit.value
@@ -256,6 +240,8 @@ class SI(tuple):
 
 			assert not hasattr(remaining, "dim"), "Didn't catch all exponents. Base units are probably not registered!"
 
+		if remaining == math.round(remaining):
+			remaining = int(remaining)
 		return "%s %s"%(remaining, Exponents(decomposition))
 				
 	def __unicode__(self): return self.intelligentstring(True)

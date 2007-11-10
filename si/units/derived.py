@@ -1,7 +1,7 @@
 # encoding: utf8
 """Units derived from SI base units."""
 from si.units.base import *
-from si import math, nonint
+from si.math import pow, nonint, pi
 
 _register = ModuleSIRegister(locals())
 r = _register.register # less writing
@@ -35,15 +35,15 @@ r(mol/s,"kat","katal","catalytic activity")
 r(60*s,"min","minute")
 r(60*min,"h","hour")
 r(24*h,"d","day")
-r(nonint("1/180")*math.pi*rad,u"°","degree","plane angle", map="never")
+r(nonint("1/180")*pi*rad,u"°","degree","plane angle", map="never")
 r(degree/60,u"′","minute","plane angle", map="never") # this does not conflict with 1/60 hour because minute (time) is abbreviated "min" (which can be used) and minute (angle) is abbreviated u"..." which can not be used, so the long name is used. FIXME: this will not be obvious to users.
 r(minute/60,u"″","second","plane angle", map="never") # same goes here
 r(10**4*m**2,"ha","hectare","area", map="never")
-r(nonint("1/10")**3*m**3,["L","l"],"litre","volume", prefixes=True, map="always")
+r(m**3*pow(10,-3),["L","l"],"litre","volume", prefixes=True, map="always")
 r(10**3*kg,"t","tonne","mass", map="never")
 
 # for use with prefixes or general usability
 r(m**2,"m2","square metre", prefixes="m2", map="never")
 r(m**3,"m3","cubic metre", prefixes="m3", map="never")
 
-del r # clean up
+del r, pi, nonint, pow # clean up
