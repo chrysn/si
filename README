@@ -1,0 +1,3 @@
+Module to make SI units available in Python, including glue code to pylab and sympy.
+
+See help(si) for details.
