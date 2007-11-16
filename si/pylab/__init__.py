@@ -68,7 +68,7 @@ class Plot(object):
         >>> p = Plot(s, m)
         >>> p.ylabel("Length (in metre)",m)
         """
-        if unit: assert unit == self.yunit
+        if unit: assert unit == self.yunit, "Plot unit does not match label unit."
         ylabel(label)
 
     def text(self, x, y, label):
