@@ -10,4 +10,5 @@ setup(
         license = "GPL",
         zip_safe = True,
         test_suite = "test.all",
+        classifiers = ["Development Status :: 3 - Alpha","Intended Audience :: Education","Intended Audience :: Science/Research","License :: OSI Approved :: GNU General Public License (GPL)"],
         )

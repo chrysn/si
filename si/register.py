@@ -24,7 +24,7 @@ class ModuleSIRegister(object):
 			return [o]
 
 	def register(self, unit, symbol, name, description = None, prefixes = None, map = "exact"):
-		"""A wrapper around SIUnit to add a unit with symbols and names (can be string/unicode or list thereof).
+		"""A wrapper around SIUnit to add a unit with symbols and names (can be string/unicode or list thereof; symbols can contain TeX representations like r"$\sigma$").
 		
 		prefixes is a list of SI prefix names common for that unit (or True for all, or one of ``["kg","m2","m3"]`` for magic handling). map defines if and how the unit should be used to give names to SI quantities ("always" for normal use, "exact" to match only scalar multiples of the unit, "never") """
 
@@ -57,6 +57,10 @@ class SIUnit(object):
 	def __init__(self, unit, symbol, name, description, prefixes, map):
 		"""See ``ModuleSIRegister.register`` for details."""
 		self.unit, self.symbol, self.name, self.description, self.prefixes, self.map = unit, symbol, name, description, prefixes, map
+	
+	@staticmethod
+	def _istex(s):
+		return s.startswith("$") and s.endswith("$")
 
 	def get_prefixed(self):
 		"""Return a list of 2-tuples with prefixed python-usable name versions and the corresponding unit value."""
@@ -115,12 +119,22 @@ class SIUnit(object):
 
 	def preferred_symbol(self, allow_unicode):
 		if allow_unicode:
-			return self.symbol[0] if self.symbol else self.name[0]
+			for s in self.symbol + self.name:
+				if not self._istex(s):
+					return s
+			raise Exception, "No unicode symbol available."
 		else:
 			for s in self.symbol + self.name:
-				if not isinstance(s, unicode):
+				if not isinstance(s, unicode) and not self._istex(s):
 					return s
-			raise Exception, "No non-unicode symbol available."
+			raise Exception, "No ascii symbol available."
+	
+	def tex(self):
+		"""Return a symbol which can be used in TeX math mode."""
+		for s in self.symbol:
+			if self._istex(s):
+				return s[1:-1]
+		return self.preferred_symbol(False)
 
 	def __repr__(self):
 		return "<SIUnit: %r (%r)>"%(self.name[0],self.symbol[0])
@@ -169,7 +183,7 @@ def search_prefixed(q):
 	try:
 		unit = search(stripped)
 	except: # maybe a prefix should not have been stripped
-		return (1, search(q).unit)
+		return (1, search(q))
 
 
 	if unit.prefixes == "m2": factor = si.math.pow(factor, 2) # magic prefix handling!
@@ -186,28 +200,34 @@ def si_from_string(s):
 	5 N/mol
 	>>> print si_from_string("50 WbkA^2")
 	50000000 A J
+	>>> print si_from_string("kHz")
+	1000 Hz
+
+	#>>> print si_from_string("mm") # fail with sympy
+	#0.001 m
+
+	#>>> print si_from_string("degree") # fail with python maths
+	#(1/180)*pi
 	"""
 
 	lastnumber = 0
 	while s[lastnumber] in string.digits+"./": lastnumber+=1
 	
 	number, unit = s[:lastnumber].strip(),s[lastnumber:].strip()
+	if not number: number = "1"
 
-	return unit_from_string(unit) * si.math.nonint(number)
-
-def unit_from_string(s):
-	"""Convert a string without numeric components to a SI quantity
-	
-	>>> print unit_from_string("kHz")
-	1000 Hz
-
-	#>>> print unit_from_string("mm") # those will make doctest fail in one of two cases
-	#0.001 m
-
-	#>>> print unit_from_string("degree")
-	#(1/180)*pi
-	"""
 	result = 1
+
+	decomp = decomposition_from_pure_string(unit)
+	for ((prefix,unit),power) in decomp.iteritems():
+		result = result * (unit.unit*prefix)**power
+
+	result = result * si.math.nonint(number)
+
+	return result
+
+def decomposition_from_pure_string(s):
+	result = {}
 	pospow = True
 
 	while s:
@@ -216,16 +236,19 @@ def unit_from_string(s):
 			continue
 
 		if s.startswith("/"):
-			if pospow == False: raise Exception,"Concecutive slashes don't make sense."
+			if pospow == False: raise Exception,"Consecutive slashes don't make sense."
 			pospow = False
 			s = s[1:]
 			continue
 
 		if s.startswith("("):
 			end = s.find(")")
-			inside = unit_from_string(s[1:end])
-			if not pospow: inside = inside ** (-1)
-			result = inside * result
+			inside = decomposition_from_pure_string(s[1:end])
+			if not pospow:
+				inside = dict((k,-v) for (k,v) in inside.iteritems())
+			for k,v in inside.iteritems():
+				result[k] = result.get(k,0) + v
+
 			s = s[end+1:]
 			pospow = True
 			continue
@@ -235,22 +258,21 @@ def unit_from_string(s):
 				thisunit = search_prefixed(s[:x])
 			except:
 				continue
+
 			s = s[x:]
 			if s.startswith("^"):
-				power = int(s[1]) # FIXME if someone complains
+				power = int(s[1]) # FIXME if someone complains. will raise an exception if my assertion was wrong.
 				s=s[2:]
 			else:
 				power = 1
 			if not pospow:
 				power = power * (-1)
 
-			if hasattr(thisunit[1],"unit"):
-				result = result * (thisunit[1].unit * thisunit[0])**power
-			else:
-				result = result * (thisunit[1] * thisunit[0])**power
+			result[thisunit] = result.get(thisunit, 0) + power
 			pospow = True
 			break
 		else:
 			raise Exception("Can not convert to unit: %s"%s)
 	
 	return result
+

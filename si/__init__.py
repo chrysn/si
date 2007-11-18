@@ -44,6 +44,12 @@ class MakesNoSense(Exception):
 
 class Exponents(dict):
 	"""Dictionary mapping symbolic bases to exponents."""
+	def _posneg(self):
+		pos=[x for x in self.items() if x[1]>0]
+		neg=[(x[0],-x[1]) for x in self.items() if x[1]<0]
+		pos.sort(lambda x,y:cmp(x[1],y[1]))
+		neg.sort(lambda x,y:cmp(x[1],y[1]))
+		return pos, neg
 	def __str__(self):
 		"""Standard string representation.
 		
@@ -54,12 +60,9 @@ class Exponents(dict):
 		>>> print Exponents({'a':1,'b':-2,'c':3,'d':-10})
 		a c^3/(b^2 d^10)
 		"""
-		dpos=[x for x in self.items() if x[1]>0]
-		dneg=[(x[0],-x[1]) for x in self.items() if x[1]<0]
-		dpos.sort(lambda x,y:cmp(x[1],y[1]))
-		dneg.sort(lambda x,y:cmp(x[1],y[1]))
+		pos, neg = self._posneg()
 		pospart,negpart=[],[]
-		for part,d in [(pospart,dpos),(negpart,dneg)]:
+		for part,d in [(pospart,pos),(negpart,neg)]:
 			for s,n in d:
 				part.append(unicode(s)+(n!=1 and "^%s"%n or ""))
 		r=" ".join(pospart)
@@ -68,6 +71,36 @@ class Exponents(dict):
 			if len(negpart)>1: r+='('
 			r+=" ".join(negpart)
 			if len(negpart)>1: r+=')'
+		return r.strip()
+
+	def tex(self, use_over = False):
+		"""TeX math mode representation.
+		
+		>>> print Exponents({'m':1,'s':-2}).tex()
+		m/s^2
+		>>> print Exponents({'s':-1}).tex(use_over = True)
+		{1}\over{s}
+		"""
+		pos, neg = self._posneg()
+		pospart,negpart=[],[]
+		for part,d in [(pospart,pos),(negpart,neg)]:
+			for s,n in d:
+				if n==1:
+					part.append(s)
+				else:
+					n = str(n)
+					if len(n)>1: n="{%s}"%n
+					part.append(unicode(s)+"^"+n)
+		if use_over and negpart:
+			pospart = pospart or ["1"]
+			return r"{%s}\over{%s}"%(" ".join(pospart)," ".join(negpart))
+		else:
+			r = " ".join(pospart)
+			if negpart:
+				r += "/"
+				if len(negpart)>1: r+= r"\left("
+				r += " ".join(negpart)
+				if len(negpart)>1: r+= r"\right)"
 		return r.strip()
 
 class SI(tuple):
@@ -182,22 +215,7 @@ class SI(tuple):
 	def _expsum(u):
 		return sum([abs(x) for x in u])
 
-	def intelligentstring(self, unicode = True):
-		"""Return a string representation using compound SI units of already loaded modules. The function will roughly try to:
-
-		- minimize the sum of absolute values of exponents:
-		>>> from si.units.common import *
-		>>> gravity=10*m/s/s; height=5*m; mass=5*kg
-		>>> print gravity*height*mass
-		250 J
-
-		- avoid units with no positive exponents:
-		>>> print 5/s
-		5 Hz
-
-		Will use unicode strings unless unicode is false.
-		"""
-
+	def _decomposition(self):
 		u_exact = []
 		u_always = []
 
@@ -216,7 +234,7 @@ class SI(tuple):
 		if exactmatch:
 			if len(exactmatch)>1:
 				warnings.warn("More than one registered unit matches this quantity: %s."%exactmatch)
-			decomposition = {exactmatch[0].preferred_symbol(unicode):1}
+			decomposition = {exactmatch[0]:1}
 			remaining = self / exactmatch[0].unit
 		else:
 			decomposition = {}
@@ -233,7 +251,7 @@ class SI(tuple):
 								and
 								not sum([abs(a) < abs(b) for a,b in zip(remaining.dim, ru.unit.dim)]) # don't use factors larger than remaining
 							) and self._expsum(div.dim)<currentexpsum: # "pays off"
-						decomposition[ru.preferred_symbol(unicode)] = decomposition.get(ru.preferred_symbol(unicode),0) + 1
+						decomposition[ru] = decomposition.get(ru,0) + 1
 						remaining=div
 						break
 
@@ -250,14 +268,47 @@ class SI(tuple):
 								and
 								not sum([abs(a) < abs(b) for a,b in zip(remaining.dim, ru.unit.dim)]) # don't use factors larger than remaining
 							) and self._expsum(div.dim)<currentexpsum: # "pays off"
-						decomposition[ru.preferred_symbol(unicode)] = decomposition.get(ru.preferred_symbol(unicode),0) - 1
+						decomposition[ru] = decomposition.get(ru,0) - 1
 						remaining=div
 						break
 
 			assert not hasattr(remaining, "dim"), "Didn't catch all exponents. Base units are probably not registered!"
 
 		remaining = math.simplest_form(remaining)
-		return "%s %s"%(remaining, Exponents(decomposition))
+		return (remaining, decomposition)
+
+	def intelligentstring(self, unicode = True):
+		"""Return a string representation using compound SI units of already loaded modules. The function will roughly try to:
+
+		- minimize the sum of absolute values of exponents:
+		>>> from si.units.common import *
+		>>> gravity=10*m/s/s; height=5*m; mass=5*kg
+		>>> print gravity*height*mass
+		250 J
+
+		- avoid units with no positive exponents:
+		>>> print 5/s
+		5 Hz
+
+		Will use unicode strings unless unicode is false.
+		"""
+		remaining, decomposition = self._decomposition()
+
+		return "%s %s"%(remaining, Exponents([(unit.preferred_symbol(unicode), power) for (unit, power) in decomposition.iteritems()]))
+
+	def tex(self, use_over = False):
+		"""Return a TeX math mode representation, using the same logic as ``intelligentstring``.
+
+		>>> from si.common import *
+		>>> print (5*m/s).tex(use_over=True)
+		5 {m}\\over{s}
+		"""
+		remaining, decomposition = self._decomposition()
+
+		if hasattr(remaining, "tex"):
+			remaining = remaining.tex() # if it looks like a ghost from the future and talks like a ghost from the future, assume it is a ghost from the future. (pro-active ducktyping)
+
+		return "%s %s"%(remaining, Exponents([(unit.tex(), power) for (unit, power) in decomposition.iteritems()]).tex(use_over = use_over))
 				
 	def __unicode__(self): return self.intelligentstring(True)
 

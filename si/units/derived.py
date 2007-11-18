@@ -9,7 +9,7 @@ r = _register.register # less writing
 # as by si definition (table 3)
 r(m/m,"rad","radian","SI unit of plane angle", map="never") # FIXME: find satisfactory solution
 r(m**2/m**2,"sr","steradian","SI unit of solid angle", map="never")
-r(1/s,"Hz","herz","SI unit of frequency", prefixes=list("YZEPTGMk"), map="always")
+r(1/s,"Hz","herz","SI unit of frequency", prefixes=list("YZEPTGMk"))
 r(kg*m/s/s,"N","newton","SI unit of force", prefixes=True, map="always")
 r(N/m**2,"Pa","pascal","SI unit of pressure, stress", prefixes=True, map="always")
 r(N*m,"J","joules","SI unit of energy, work, amount of heat", prefixes=True, map="always")
