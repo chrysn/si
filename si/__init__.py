@@ -178,19 +178,32 @@ class SI(tuple):
 		return SI((si.math.pow(self.value,exp),tuple(a*exp for a in self.dim)))
 
 	def __cmp__(self,other):
-		if self.dim!=other.dim: raise MakesNoSense("Comparing non-compatible quantities.")
+		if not hasattr(other, "dim") or self.dim!=other.dim:
+			raise MakesNoSense("Comparing non-compatible quantities.")
 		return cmp(self[0],other[0])
 	def __nonzero__(self):
 		return bool(self.value)
 
 	def __lt__(self, other):
-		return cmp(self, other)<0
+		""">>> from si.units.common import *
+		>>> 1*m < 5*s
+		Traceback (most recent call last):
+		  ...
+		MakesNoSense: Comparing non-compatible quantities.
+		"""
+		return self.__cmp__(other)<0
 	def __gt__(self, other):
-		return cmp(self, other)>0
+		""">>> from si.units.common import *
+		>>> 1*m > 1
+		Traceback (most recent call last):
+		  ...
+		MakesNoSense: Comparing non-compatible quantities.
+		"""
+		return self.__cmp__(other)>0
 	def __le__(self, other):
-		return cmp(self, other)<=0
+		return self.__cmp__(other)<=0
 	def __ge__(self, other):
-		return cmp(self, other)>=0
+		return self.__cmp__(other)>=0
 
 	def using(self,unit):
 		"""Get numeric value in given unit.
