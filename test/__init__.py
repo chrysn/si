@@ -6,6 +6,7 @@ def all():
     import si, si.register, si.pylab
     suite.addTests(doctest.DocTestSuite(si))
     suite.addTests(doctest.DocTestSuite(si.register))
+    suite.addTests(doctest.DocTestSuite(si.units))
     suite.addTests(doctest.DocTestSuite(si.pylab))
 
     import si.mathmodules.sympy

@@ -115,16 +115,24 @@ class SIUnit(object):
 			return NotImplemented
 	__rtruediv__ = __rdiv__
 
-        # BIG FIXME: implement multiplication, powers
+	def __pow__(self, exponent):
+		return SICompoundUnit(((1, self, exponent),))
+
+	def __mul__(self, other):
+		if isinstance(other, SIUnit): # duck typing not appropriate here; other people can implement their own mechanisms because we return NotImplemented
+			return SICompoundUnit(((1, self, 1), (1, other, 1)))
+		else:
+			return NotImplemented
 
 class SICompoundUnit(tuple):
 	"""Immutable formal composition of SI units. Unlike operations on ``SI`` quantities, ``SICompoundUnit``s don't do calculations but keep the connections to the ``SIUnit``s and the order of multiplication.
 
 	``SICompoundUnit``s are usually constructed by multiplication / division of ``SIUnit``s, FIXME
 
+	>>> from si.register import search
 	>>> h = search('h'); m = search('m')
-	>>> print 1/h**2
-	1/h^2
+	>>> print 1/h
+	1/h
 	>>> m/h
 	<SICompoundUnit ((1, <SIUnit: 'metre' ('m')>, 1), (1, <SIUnit: 'hour' ('h')>, -1))>
 
@@ -226,7 +234,8 @@ class SICompoundUnit(tuple):
 	def to_unit(self):
 		"""Multiply all components in the ``SICompoundUnit`` to an ``SI`` object
 
-		>>> h = search('h'); m = search('m')
+		>>> from si.register import search
+		>>> h = search('h')
 		>>> print 1/h**2
 		1/h^2
 
@@ -243,4 +252,47 @@ class SICompoundUnit(tuple):
 
 		return result
 
-        # BIG FIXME: SIUnits create SICompoundUnits by multiplication/division; these should be able to continue that process
+	# mathematical operations on units create compound units; these in term have to continue that process
+
+	# BIG FIXME: operations with other SICompoundUnit and should created nested structures
+	# (make a difference between m^2/s^2 and (m/s)^2
+
+	def __div__(self, other):
+		if isinstance(other, SIUnit):
+			return SICompoundUnit(tuple(self) + ((1, other, -1),))
+		elif isinstance(other, SICompoundUnit):
+			return SICompoundUnit(tuple(self) + tuple((prefix,unit,-power) for (prefix,unit,power) in other))
+		else:
+			return NotImplemented
+	__truediv__ = __div__
+
+	# have to work in both directions because sequence matters
+	def __rdiv__(self, other):
+		if other == 1:
+			return SICompoundUnit(tuple((prefix,unit,-power) for (prefix,unit,power) in self))
+		if isinstance(other, SIUnit):
+			return SICompoundUnit(((1, other, -1),) + tuple(self))
+		#elif isinstance(other, SICompoundUnit):
+			# not necessary, will be handled by other me
+		else:
+			return NotImplemented
+	__rtruediv__ = __rdiv__
+
+	def __pow__(self, exponent):
+		return SICompoundUnit(tuple((prefix,unit,power*exponent) for (prefix,unit,power) in self))
+
+	def __mul__(self, other):
+		if isinstance(other, SIUnit):
+			return SICompoundUnit(tuple(self) + ((1, other, 1),))
+		elif isinstance(other, SICompoundUnit):
+			return SICompoundUnit(tuple(self) + tuple(other))
+		else:
+			return NotImplemented
+
+	def __rmul__(self, other):
+		if isinstance(other, SIUnit):
+			return SICompoundUnit(((1, other, 1),) + tuple(self))
+		#elif isinstance(other, SICompoundUnit):
+			# not necessary, will be hanled by other me
+		else:
+			return NotImplemented
