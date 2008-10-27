@@ -4,6 +4,8 @@ from __future__ import division
 import string
 import si.math
 
+from si.units import SIUnit, SICompoundUnit
+
 class ModuleSIRegister(object):
 	"""In a module, create a ``_register = ModuleSIRegister(locals())`` and add define units like ``_register.register(s**-1, "Hz", "herz", prefixes = list('YZEPTGMk'))``. Units will be made available for inclusion with import automatically, and prefixing is handled."""
 	loadedmodules = [] # keep a list in the class
@@ -48,96 +50,6 @@ class ModuleSIRegister(object):
 			for n, pu in ru.get_prefixed():
 				self.locals[n] = pu
 
-class SIUnit(object):
-	"""Container to store meta information about an ``SI`` quantity that is a unit. Stores prefix preferences, name, symbol, description, and display preferences. Listed via ``ModuleSIRegister``s, which in turn have their own mechanism to be listed.
-	
-	Should in most cases be constructed via the ``ModuleSIRegister``s' ``register()`` function."""
-
-	all_prefixes = list('YZEPTGMkhdcmunpfazy') + ["da"]
-	def __init__(self, unit, symbol, name, description, prefixes, map):
-		"""See ``ModuleSIRegister.register`` for details."""
-		self.unit, self.symbol, self.name, self.description, self.prefixes, self.map = unit, symbol, name, description, prefixes, map
-	
-	@staticmethod
-	def _istex(s):
-		return s.startswith("$") and s.endswith("$")
-
-	def get_prefixed(self):
-		"""Return a list of 2-tuples with prefixed python-usable name versions and the corresponding unit value."""
-		import si.prefixes
-		if not self.prefixes:
-			return []
-		elif self.prefixes == "kg": # magic handling of kg, see section 3.2 of the brochure
-			assert self.name == ["kilogram"], "Prefixing kg style only makes sense for kg. Fix me if I'm wrong."
-			g = self.unit / 1000
-			r = [("g", g)]
-			for p in self.all_prefixes:
-				if p != "k":
-					r.append((p+"g", g * getattr(si.prefixes, p)))
-			return r
-		elif self.prefixes == "m2": # magic handling to have a convenient way of writing square mm as mm2 instead of mm**2 (which is != milli*m**2, as it would happen if regularly prefixing m2)
-			assert self.name == ["square metre"], "Prefixing m2 style only makes sense for m2. Fix me if I'm wrong."
-			r = []
-			for p in self.all_prefixes:
-				r.append((p+"m2", self.unit * getattr(si.prefixes, p)**2))
-			return r
-		elif self.prefixes == "m3": # as with m2
-			assert self.name == ["cubic metre"], "Prefixing m3 style only makes sense for m3. Fix me if I'm wrong."
-			r = []
-			for p in self.all_prefixes:
-				r.append((p+"m3", self.unit * getattr(si.prefixes, p)**3))
-			return r
-		elif self.prefixes == True:
-			prefixes = self.all_prefixes
-		else:
-			prefixes = self.prefixes
-
-		r = []
-		for n in self.get_python_names():
-			for p in prefixes:
-				r.append((p+n, self.unit * getattr(si.prefixes, p)))
-		return r
-
-	@staticmethod
-	def _valid_python_name(s):
-		return len([l for l in string.letters+"_" if s.startswith(l)]) and not len([l for l in s if l not in string.letters+string.digits+"_"])
-
-	def get_python_names(self):
-		"""Yield at least one name that can be used to address the unit in python. First (long) name will be used if all (short) prefixes are unusable as python identifiers."""
-		setone = False
-		for n in self.symbol:
-			if self._valid_python_name(n):
-				yield n
-				setone = True
-		if not setone:
-			for n in self.name:
-				if self._valid_python_name(n):
-					yield n
-					break
-			else:
-				raise Exception("Can not register unit name: no prefix or name appropriate.")
-
-	def preferred_symbol(self, allow_unicode):
-		if allow_unicode:
-			for s in self.symbol + self.name:
-				if not self._istex(s):
-					return s
-			raise Exception, "No unicode symbol available."
-		else:
-			for s in self.symbol + self.name:
-				if not isinstance(s, unicode) and not self._istex(s):
-					return s
-			raise Exception, "No ascii symbol available."
-	
-	def tex(self):
-		"""Return a symbol which can be used in TeX math mode."""
-		for s in self.symbol:
-			if self._istex(s):
-				return s[1:-1]
-		return self.preferred_symbol(False)
-
-	def __repr__(self):
-		return "<SIUnit: %r (%r)>"%(self.name[0],self.symbol[0])
 
 def search(q):
 	"""Search loaded modules for a quantity exactly matching the search term q.
@@ -160,8 +72,7 @@ def search(q):
 def search_prefixed(q):
 	"""Like ``search``, but strip prefixes. Return a tuple of the prefix factor and the found unit.
 	
-	>>> from si.common import *
-	>>> from si.register import search_prefixed
+	>>> import si.common # load unit definitions
 	>>> search_prefixed("Gg") # one giga-gram
 	(1000000, <SIUnit: 'kilogram' ('kg')>)
 	"""
@@ -194,6 +105,7 @@ def search_prefixed(q):
 def si_from_string(s):
 	"""Convert a string to a SI quantity.
 	
+	>>> import si.common # load unit definitions
 	>>> print si_from_string("5S/cm^2")
 	50000 S/m^2
 	>>> print si_from_string("5 J/(m*mol)")
@@ -216,70 +128,9 @@ def si_from_string(s):
 	number, unit = s[:lastnumber].strip(),s[lastnumber:].strip()
 	if not number: number = "1"
 
-	result = 1
-
-	decomp = decomposition_from_pure_string(unit)
-	for (prefix, unit, power) in decomp:
-		result = result * (unit.unit*prefix)**power
+	decomp = SICompoundUnit(unit)
+	result = decomp.to_unit()
 
 	result = result * si.math.nonint(number)
 
 	return result
-
-def decomposition_from_pure_string(s):
-	"""Convert a string containing only SI units (no numbers) to a list of (prefix, unit, power) tuples.
-
-	Used for string to SI unit conversion.
-	
-	>>> decomposition_from_pure_string("kgNkm/m")
-	[(1, <SIUnit: 'kilogram' ('kg')>, 1), (1, <SIUnit: 'newton' ('N')>, 1), (1000, <SIUnit: 'metre' ('m')>, 1), (1, <SIUnit: 'metre' ('m')>, -1)]
-	"""
-	result = []
-	pospow = True
-
-	while s:
-		if s.startswith("*") or s.startswith(" "):
-			s = s[1:]
-			continue
-
-		if s.startswith("/"):
-			if pospow == False: raise Exception,"Consecutive slashes don't make sense."
-			pospow = False
-			s = s[1:]
-			continue
-
-		if s.startswith("("):
-			end = s.find(")")
-			inside = decomposition_from_pure_string(s[1:end])
-			if not pospow:
-				inside = [(prefix, unit, -power) for (prefix, unit, power) in inside]
-			for prefix, unit, power in inside:
-				result.append((prefix, unit, power))
-
-			s = s[end+1:]
-			pospow = True
-			continue
-
-		for x in range(len(s),0,-1):
-			try:
-				thisunit = search_prefixed(s[:x])
-			except:
-				continue
-
-			s = s[x:]
-			if s.startswith("^"):
-				power = int(s[1]) # FIXME if someone complains. will raise an exception if my assertion was wrong.
-				s=s[2:]
-			else:
-				power = 1
-			if not pospow:
-				power = power * (-1)
-
-			result.append((thisunit[0], thisunit[1], power))
-			pospow = True
-			break
-		else:
-			raise Exception("Can not convert to unit: %s"%s)
-	
-	return result
-

@@ -23,3 +23,16 @@ z = zepto = pow(10,-21)
 y = yocto = pow(10,-24)
 
 del pow
+
+def prefix_from_value(value, short=True): # FIXME: this could use a more sophisticated system as present for SI Units (or would this mean overkill?)
+    """Convert a numerical value to an SI prefix (by default using the short form)"""
+
+    import si.prefixes
+
+    def mycmp(a, b): # FIXME: decorate/sort/undecorate is probably faster
+        return cmp(len(a), len(b))
+    variants = sorted((k for (k,v) in vars(si.prefixes).iteritems() if v==value), cmp=mycmp)
+    if short:
+        return variants[0]
+    else:
+        return variants[-1]
