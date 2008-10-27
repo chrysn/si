@@ -324,6 +324,8 @@ class SI(tuple):
 		1.96... {apc \over \mu{}fortnight}
 		"""
 		if using:
+			if isinstance(using, basestring):
+				using = si.units.SICompoundUnit(using)
 			remaining = self.using(using.to_unit())
 
 			if hasattr(remaining, "tex"):
