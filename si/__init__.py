@@ -79,7 +79,7 @@ class Exponents(dict):
 		>>> print Exponents({'m':1,'s':-2}).tex()
 		m/s^2
 		>>> print Exponents({'s':-1}).tex(use_over = True)
-		{1}\over{s}
+		{1 \\over s}
 		"""
 		pos, neg = self._posneg()
 		pospart,negpart=[],[]
@@ -93,7 +93,7 @@ class Exponents(dict):
 					part.append(unicode(s)+"^"+n)
 		if use_over and negpart:
 			pospart = pospart or ["1"]
-			return r"{%s}\over{%s}"%(" ".join(pospart)," ".join(negpart))
+			return r"{%s \over %s}"%(" ".join(pospart)," ".join(negpart))
 		else:
 			r = " ".join(pospart)
 			if negpart:
@@ -314,7 +314,7 @@ class SI(tuple):
 
 		>>> from si.common import *
 		>>> print (5*m/s).tex(use_over=True)
-		5 {m}\\over{s}
+		5 {m \\over s}
 		"""
 		remaining, decomposition = self._decomposition()
 
