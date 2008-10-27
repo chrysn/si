@@ -14,7 +14,7 @@ da = deca = 10**1
 d = deci = pow(10,-1)
 c = centi = pow(10,-2)
 m = milli = pow(10,-3)
-u = micro = pow(10,-6) # would have to be μ or µ. FIXME: hardcoded in register.search_prefixed
+u = micro = pow(10,-6) # would have to be μ or µ. FIXME: hardcoded in register.search_prefixed, prefix_from_value
 n = nano = pow(10,-9)
 p = pico = pow(10,-12)
 f = femto = pow(10,-15)
@@ -24,7 +24,7 @@ y = yocto = pow(10,-24)
 
 del pow
 
-def prefix_from_value(value, short=True): # FIXME: this could use a more sophisticated system as present for SI Units (or would this mean overkill?)
+def prefix_from_value(value, short=True, tex=False): # FIXME: this could use a more sophisticated system as present for SI Units (or would this mean overkill?)
     """Convert a numerical value to an SI prefix (by default using the short form)"""
 
     import si.prefixes
@@ -32,6 +32,10 @@ def prefix_from_value(value, short=True): # FIXME: this could use a more sophist
     def mycmp(a, b): # FIXME: decorate/sort/undecorate is probably faster
         return cmp(len(a), len(b))
     variants = sorted((k for (k,v) in vars(si.prefixes).iteritems() if v==value), cmp=mycmp)
+
+    if tex:
+        return variants[0].replace('u','\\mu{}')
+
     if short:
         return variants[0]
     else:

@@ -309,19 +309,34 @@ class SI(tuple):
 
 		return "%s %s"%(remaining, Exponents([(unit.preferred_symbol(unicode), power) for (unit, power) in decomposition.iteritems()]))
 
-	def tex(self, use_over = False):
+	def tex(self, use_over=False, using=None):
 		"""Return a TeX math mode representation, using the same logic as ``intelligentstring``.
 
 		>>> from si.common import *
 		>>> print (5*m/s).tex(use_over=True)
 		5 {m \\over s}
+
+		If using is given as a ``SICompoundUnit``, that decomposition is used instead:
+
+		>>> import si.units.exotic
+		>>> apcpufn = si.units.SICompoundUnit("aparsec/ufortnight")
+		>>> print (5*cm/s).tex(using=apcpufn) # doctest: +ELLIPSIS
+		1.96... {apc \over \mu{}fortnight}
 		"""
-		remaining, decomposition = self._decomposition()
+		if using:
+			remaining = self.using(using.to_unit())
 
-		if hasattr(remaining, "tex"):
-			remaining = remaining.tex() # if it looks like a ghost from the future and talks like a ghost from the future, assume it is a ghost from the future. (pro-active ducktyping)
+			if hasattr(remaining, "tex"):
+				remaining = remaining.tex() # if it looks like a ghost from the future and talks like a ghost from the future, assume it is a ghost from the future. (pro-active ducktyping)
 
-		return "%s %s"%(remaining, Exponents([(unit.tex(), power) for (unit, power) in decomposition.iteritems()]).tex(use_over = use_over))
+			return "%s %s"%(remaining, using.tex())
+		else:
+			remaining, decomposition = self._decomposition()
+
+			if hasattr(remaining, "tex"):
+				remaining = remaining.tex()
+
+			return "%s %s"%(remaining, Exponents([(unit.tex(), power) for (unit, power) in decomposition.iteritems()]).tex(use_over = use_over))
 				
 	def __unicode__(self): return self.intelligentstring(True)
 

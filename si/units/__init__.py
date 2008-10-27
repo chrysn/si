@@ -97,7 +97,10 @@ class SIUnit(object):
 		return self.preferred_symbol(False)
 
 	def __repr__(self):
-		return "<SIUnit: %r (%r)>"%(self.name[0],self.symbol[0])
+		if self.symbol:
+			return "<SIUnit: %r (%r)>"%(self.name[0],self.symbol[0])
+		else:
+			return "<SIUnit: %r>"%(self.name[0])
 
 	# mathematical operations on units create compound units
 
@@ -296,3 +299,44 @@ class SICompoundUnit(tuple):
 			# not necessary, will be hanled by other me
 		else:
 			return NotImplemented
+
+	def tex(self):
+		"""Give (La)TeX representation
+
+		>>> SICompoundUnit("/h").tex()
+		'{1 \\\\over h}'
+
+		>>> SICompoundUnit("aparsec/ufortnight").tex()
+		'{apc \\\\over \\\\mu{}fortnight}'
+		"""
+		import si.prefixes
+
+		# can't use Exponents here because preservation of sequence is desired
+		numerator = [(f,u,e) for (f,u,e) in self if e>0]
+		denominator = [(f,u,-e) for (f,u,e) in self if e<0]
+
+		numerator_strings = [(
+				si.prefixes.prefix_from_value(f, tex=True) if f!=1 else "",
+				u.tex(),
+				"^%s"%e if e!=1 else None
+				) for (f,u,e) in numerator]
+		denominator_strings = [(
+				si.prefixes.prefix_from_value(f, tex=True) if f!=1 else "",
+				u.tex(),
+				"^%s"%e if e!=1 else None
+				) for (f,u,e) in denominator]
+
+		numerator_string = " ".join(
+				"{%s%s}%s"%(f,u,e) if e else "%s%s"%(f,u)
+				for (f,u,e) in numerator_strings)
+		denominator_string = " ".join(
+				"{%s%s}%s"%(f,u,e) if e else "%s%s"%(f,u)
+				for (f,u,e) in denominator_strings)
+
+		if not numerator_string:
+			numerator_string = "1"
+
+		if denominator:
+			return "{%s \\over %s}"%(numerator_string, denominator_string)
+		else:
+			return "{%s}"%numerator_string
