@@ -219,7 +219,7 @@ def si_from_string(s):
 	result = 1
 
 	decomp = decomposition_from_pure_string(unit)
-	for ((prefix,unit),power) in decomp.iteritems():
+	for (prefix, unit, power) in decomp:
 		result = result * (unit.unit*prefix)**power
 
 	result = result * si.math.nonint(number)
@@ -227,7 +227,14 @@ def si_from_string(s):
 	return result
 
 def decomposition_from_pure_string(s):
-	result = {}
+	"""Convert a string containing only SI units (no numbers) to a list of (prefix, unit, power) tuples.
+
+	Used for string to SI unit conversion.
+	
+	>>> decomposition_from_pure_string("kgNkm/m")
+	[(1, <SIUnit: 'kilogram' ('kg')>, 1), (1, <SIUnit: 'newton' ('N')>, 1), (1000, <SIUnit: 'metre' ('m')>, 1), (1, <SIUnit: 'metre' ('m')>, -1)]
+	"""
+	result = []
 	pospow = True
 
 	while s:
@@ -245,9 +252,9 @@ def decomposition_from_pure_string(s):
 			end = s.find(")")
 			inside = decomposition_from_pure_string(s[1:end])
 			if not pospow:
-				inside = dict((k,-v) for (k,v) in inside.iteritems())
-			for k,v in inside.iteritems():
-				result[k] = result.get(k,0) + v
+				inside = [(prefix, unit, -power) for (prefix, unit, power) in inside]
+			for prefix, unit, power in inside:
+				result.append((prefix, unit, power))
 
 			s = s[end+1:]
 			pospow = True
@@ -268,7 +275,7 @@ def decomposition_from_pure_string(s):
 			if not pospow:
 				power = power * (-1)
 
-			result[thisunit] = result.get(thisunit, 0) + power
+			result.append((thisunit[0], thisunit[1], power))
 			pospow = True
 			break
 		else:
