@@ -215,6 +215,11 @@ class SICompoundUnit(tuple):
 		return '<%s %s>'%(type(self).__name__, super(SICompoundUnit, self).__repr__())
 
 	def __str__(self):
+		"""
+		>>> from si.register import search
+		>>> print SICompoundUnit('/mg')
+		1/mg
+		"""
 		# FIXME: be a little intelligent about what can be grouped together
 		import si.prefixes
 
@@ -223,9 +228,14 @@ class SICompoundUnit(tuple):
 			if power < 0:
 				power = power * -1
 				ret += "/"
-			if prefix != 1:
-				ret += si.prefixes.prefix_from_value(prefix)
-			ret += unit.preferred_symbol(allow_unicode=True)
+			if unit.name == ['kilogram']: # FIXME: special handling for kg
+				if prefix*1000 != 1:
+					ret += si.prefixes.prefix_from_value(prefix*1000)
+				ret += 'g'
+			else:
+				if prefix != 1:
+					ret += si.prefixes.prefix_from_value(prefix)
+				ret += unit.preferred_symbol(allow_unicode=True)
 			if power != 1:
 				ret += '^%s'%power
 
@@ -251,7 +261,6 @@ class SICompoundUnit(tuple):
 		result = 1
 		for (prefix, unit, power) in self:
 			result *= (prefix * unit.unit) ** power
-                        # FIXME: does not do special handling for kg, resulting in gramm being called milli-kilogramm
 
 		return result
 
