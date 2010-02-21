@@ -20,6 +20,13 @@ Uses floats and python math by default. Override by setting SI.math to a math em
 Caveats:
 
 	* SI objects are purely mathematical (no physical concepts) and therefore can not have any notion of what they are *really* representing. Don't expect them to make a difference between Nm and J!
+	* Non-integer exponents are not really supported, although they basically work; expect trouble when using non-power-of-two exponents (floats again), and with the string representation:
+
+>>> print cd**2
+1 cd^2
+>>> print cd**(1/2) # doctest: +ELLIPSIS
+<SI ... cd^0.5>
+
 	* Python/IEEE floats are not ideal to represent negative powers of ten. Take the difference between mL and cm3 to know what I mean.
 	* When using SI units in connection with other objects emulating mathematical behavior, you will have to take care of the sequence when multiplying, although SI objects themselves are commutative. For example, until `a bug in sympy`__ is fixed, you have to write ``kg*sympify("1/10")`` instead of ``sympify("1/10")*kg``.
 
@@ -305,6 +312,13 @@ class SI(tuple):
 
 		Will use unicode strings unless unicode is false.
 		"""
+
+		if any(isinstance(exp, float) for exp in self.dim):
+			# there might be non-integer parts left. non-integer exponents are
+			# currently not supported well, but at least string representation
+			# should work.
+			return repr(self)
+
 		remaining, decomposition = self._decomposition()
 
 		return "%s %s"%(remaining, Exponents([(unit.preferred_symbol(unicode), power) for (unit, power) in decomposition.iteritems()]))
