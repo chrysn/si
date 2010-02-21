@@ -1,0 +1,9 @@
+Format-Specification: http://dep.debian.net/deps/dep5/
+Name: arandr
+Maintainer: Christian M. Amsüss <chrysn@fsfe.org>
+Source: FIXME
+
+Copyright: © 2007–2010 chrysn <chrysn@fsfe.org>
+License: GPL-3+
+ The full text of the GPL is distributed in /usr/share/common-licenses/GPL-3 on
+ Debian systems.

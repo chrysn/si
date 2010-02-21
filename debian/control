@@ -1,0 +1,19 @@
+Source: python-si
+Section: python
+Priority: optional
+Maintainer: Christian M. Amsüss <chrysn@fsfe.org>
+Build-Depends: debhelper (>= 7), python (>= 2.5)
+Build-Depends-Indep: python-support
+Standards-Version: 3.8.4
+Homepage: FIXME
+Vcs-Browser: FIXME
+Vcs-git: FIXME
+
+Package: python-si
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}
+Suggests: ipython
+Description: SI unit handling for Python
+ python-si contains an implementation of the SI quantities and units. It is
+ designed with both interactive usage (e.g. with IPython) and larger
+ calculations in mind.
