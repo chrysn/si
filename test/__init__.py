@@ -15,3 +15,11 @@ def all():
     # to test if everything works, uncomment the block containing "degree" in unit_from_string
     
     return suite
+
+def run_all():
+    runner = unittest.TextTestRunner()
+    suite = all()
+    runner.run(suite)
+
+if __name__ == "__main__":
+    run_all()
