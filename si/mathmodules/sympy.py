@@ -13,9 +13,9 @@
 And now for something completely different:
 >>> import doctest
 >>> doctest.testmod(si) # doctest: +ELLIPSIS
-(0, ...)
+TestResults(failed=0, ...)
 >>> doctest.testmod(si.register) # doctest: +ELLIPSIS
-(0, ...)
+TestResults(failed=0, ...)
 """
 from __future__ import division
 from __future__ import absolute_import
